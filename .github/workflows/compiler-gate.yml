@@ -1,0 +1,73 @@
+name: Semantic Quality Gate
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  semantic-validation:
+    runs-on: ubuntu-latest
+    name: Semantic Validation & Quality Gate
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: backend/package.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm install
+
+      - name: Run semantic validation
+        working-directory: backend
+        run: node src/compiler/runCompilerCI.js
+        continue-on-error: true
+        id: compiler-check
+
+      - name: Check validation status
+        run: |
+          if [ ${{ steps.compiler-check.outcome }} == "failure" ]; then
+            echo "❌ Semantic Validation Failed"
+            echo "Deployment blocked due to semantic errors."
+            exit 1
+          else
+            echo "✅ Semantic Validation Passed"
+          fi
+
+      - name: Deploy to production
+        if: success()
+        run: |
+          echo "🚀 Deploying to production..."
+          echo "All semantic checks passed. System is ready for deployment."
+
+  security-scan:
+    runs-on: ubuntu-latest
+    name: Security Scan
+    needs: semantic-validation
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: backend/package.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm install
+
+      - name: Run npm audit
+        working-directory: backend
+        continue-on-error: true
+        run: npm audit --audit-level=moderate
